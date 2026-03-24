@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!--
+      The meta viewport tag ensures proper scaling on mobile devices.
+      width=device-width sets the page width to the device width,
+      initial-scale=1 ensures a 1:1 scale when the page first loads.
+    -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Data List</title>
+    <style>
+        /* ====== GENERAL PAGE STYLE ======
+           Global styles to create a centered, readable layout with a dark overlay.
+           The body uses a flex container to center top-aligned content, while a
+           fixed pseudo-element (::before) draws a semi-transparent dark backdrop.
+        */
+        body {
+            font-family: Arial, sans-serif;   /* Simple, broadly available font stack */
+            background-color: #fff;           /* Base white background beneath the overlay */
+            display: flex;                    /* Enable flex layout for easy centering */
+            justify-content: center;          /* Center content horizontally */
+            align-items: flex-start;          /* Align content to the top */
+            min-height: 100vh;                /* Ensure viewport height coverage */
+            margin: 0;                        /* Remove default margins */
+            color: #000;                      /* Default text color */
+            position: relative;               /* Establish positioning context for ::before overlay */
+        }
+
+        /* Add a dark overlay background
+           The overlay sits behind the main content but above the white body background.
+           Using position: fixed ensures it covers the entire viewport even when scrolling.
+        */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;                      /* Full viewport width */
+            height: 100%;                     /* Full viewport height */
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent black overlay */
+            z-index: 1;                       /* Place behind .container (which has z-index: 2) */
+        }
+
+        /* Main container that holds all content
+           A centered card-like panel with subtle transparency and rounded corners.
+           z-index elevates it above the dark overlay.
+        */
+        .container {
+            width: 70vw;                       /* Responsive width based on viewport width */
+            max-width: 1400px;                 /* Upper bound for large displays */
+            display: flex;                     /* Stack children vertically */
+            flex-direction: column;
+            gap: 20px;                         /* Spacing between child sections */
+            position: relative;
+            z-index: 2;                        /* Keeps it above the dark overlay */
+            background-color: rgba(255, 255, 255, 0.9); /* Slight transparency for depth */
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);   /* Subtle elevation */
+        }
+
+        /* Title text styling, scaled with viewport width for responsiveness */
+        .title {
+            font-size: 2.5vw;
+            color: #333;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        /* Search bar style
+           Applied to inputs used for entering a session ID and filtering by filename.
+        */
+        .search-box {
+            width: 50%;                        /* Half the container width (responsive) */
+            padding: 10px;
+            font-size: 1rem;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            flex: 1;                           /* Allows flex growth within action containers */
+        }
+
+        /* Flexbox container for search & actions
+           Ensures controls wrap on small screens and remain spaced on large screens.
+        */
+        .action-container {
+            display: flex;
+            justify-content: space-between;    /* Space between left and right groups */
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;                   /* Wrap controls on narrow screens */
+        }
+
+        /* Buttons grouped to the right (alternate control group) */
+        .action-buttons {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        /* General button style (not used for download links styled as buttons) */
+        .action-buttons button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 5px;
+            background-color: #555;
+            color: #fff;
+            cursor: pointer;
+            transition: background-color 0.3s ease; /* Smooth hover transition */
+        }
+
+        .action-buttons button:hover {
+            background-color: #888;
+        }
+
+        /* Table container (scrollable area) */
+        .layers-section {
+            overflow-y: auto;                  /* Enable vertical scrolling if needed */
+            background-color: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            padding: 10px;
+            color: #000;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Table style
+           Uses full width and standard collapsed borders for a clean tabular display.
+        */
+        .layers-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        /* Table header styling for contrast and readability */
+        .layers-table thead {
+            background-color: #333;
+            color: #fff;
+        }
+
+        /* Cell padding and row separators */
+        .layers-table th, .layers-table td {
+            padding: 10px;
+            font-size: 1rem;
+            border-bottom: 1px solid #ccc;
+        }
+
+        /* Download button style (for <a> links that trigger a file download) */
+        .download-button {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;            /* Remove underline on links */
+            color: #fff;
+            background-color: #555;
+            transition: background-color 0.3s ease;
+        }
+
+        .download-button:hover {
+            background-color: #888;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!--
+          Section: Concatenate multiple blocks into one file
+          - Users provide a session/base ID (e.g., "OCE_170823")
+          - Clicking the button opens a server-side PHP endpoint (concat_blocks.php)
+            that gathers related parts and returns a combined CSV download.
+        -->
+        <div class="action-container">
+            <input type="text" id="concat-id" class="search-box" placeholder="Enter session ID (e.g. OCE_170823)" />
+            <button id="concat-button" class="download-button">Download Combined File</button>
+        </div>
+        
+        <!--
+          Section: Search and sort files
+          - Live filtering by filename (client-side only)
+          - Sorting by last modified timestamp (newest/oldest)
+          - Relies on a backend endpoint that returns a JSON list of files
+            with "name" and "modified" fields.
+        -->
+        <div class="action-container">
+            <input type="text" id="search-box" class="search-box" placeholder="Search files by name..." />
+            <button id="sort-newest" class="download-button">Newest</button>
+            <button id="sort-oldest" class="download-button">Oldest</button>
+        </div>
+
+        <!--
+          Section: Table that lists files
+          - Table headers define 3 columns:
+              1) File Name
+              2) Last Modified
+              3) Action (download link)
+          - The <tbody> is filled dynamically by client-side JS after fetching JSON.
+        -->
+        <div class="content">
+            <div class="layers-section">
+                <table class="layers-table">
+                    <thead>
+                        <tr>
+                            <th style="width:50%;">File Name</th>
+                            <th style="width:30%;">Last Modified</th>
+                            <th style="width:20%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="layers-table-body">
+                        <!-- File list will be filled here dynamically -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!--
+      JS block #1: Handle concatenation and download of full session file
+      - Reads the session/base ID from the input field.
+      - Opens concat_blocks.php in a new tab with ?base_id=<encoded value>.
+      - The server script is expected to respond with a combined CSV file.
+      - Security: encodeURIComponent prevents breaking the query string with special chars.
+    -->
+    <script>
+        document.getElementById('concat-button').addEventListener('click', function () {
+            const sessionId = document.getElementById('concat-id').value.trim();
+            if (!sessionId) {
+                alert("Please enter a session ID.");
+                return;
+            }
+            // Open PHP script in new tab to concatenate files
+            // Expected server endpoint: concat_blocks.php?base_id=<ID>
+            // Behavior: triggers a download (e.g., with Content-Disposition: attachment)
+            window.open(`concat_blocks.php?base_id=${encodeURIComponent(sessionId)}`, '_blank');
+        });
+    </script>
+
+    <!--
+      JS block #2: Load and render list of CSV files
+      - On DOMContentLoaded, fetch a JSON index from "Data/index.php".
+      - The JSON should be an array of objects: [{ name: "file.csv", modified: "ISO-8601" }, ...]
+      - The code maintains an in-memory array (allFiles) to support filtering and sorting.
+      - Rendering is performed by injecting <tr> rows into the table body.
+    -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const url = "Data/index.php"; // Server script that lists available CSV files (returns JSON)
+            let allFiles = [];             // In-memory cache of files for filtering/sorting
+
+            // Function: filter files by search term (case-insensitive)
+            // - Clears the current table and renders only files whose names contain the term.
+            function filterFiles(searchTerm) {
+                const tableBody = document.getElementById('layers-table-body');
+                tableBody.innerHTML = "";
+                const filtered = allFiles.filter(file =>
+                    file.name.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+                renderFiles(filtered);
+            }
+
+            // Function: render files in the table
+            // - If no files, show a single-row message.
+            // - For each file, create a row with:
+            //     * name (text)
+            //     * last modified (formatted with toLocaleString)
+            //     * action: direct download link (anchor with download attribute)
+            function renderFiles(files) {
+                const tableBody = document.getElementById('layers-table-body');
+                tableBody.innerHTML = "";
+                if (files.length === 0) {
+                    tableBody.innerHTML = "<tr><td colspan='3'>No files found.</td></tr>";
+                } else {
+                    files.forEach(fileInfo => {
+                        const fileUrl = `Data/${fileInfo.name}`;
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${fileInfo.name}</td>
+                            <td>${new Date(fileInfo.modified).toLocaleString()}</td>
+                            <td><a href="${fileUrl}" download class="download-button">Download</a></td>
+                        `;
+                        tableBody.appendChild(row);
+                    });
+                }
+            }
+
+            // Function: sort files by last modified date
+            // - order "desc": newest first, "asc": oldest first
+            // - Uses a shallow copy ([...allFiles]) to avoid mutating the cached array directly.
+            function sortFilesByDate(order = "desc") {
+                const sorted = [...allFiles].sort((a, b) => {
+                    const dateA = new Date(a.modified);
+                    const dateB = new Date(b.modified);
+                    return order === "desc" ? dateB - dateA : dateA - dateB;
+                });
+                renderFiles(sorted);
+            }
+
+            // Event: live search as user types
+            // - Triggers on every input event; consider debouncing for very large lists.
+            document.getElementById('search-box').addEventListener('input', function (e) {
+                filterFiles(e.target.value);
+            });
+
+            // Event: sort newest first (default behavior)
+            document.getElementById('sort-newest').addEventListener('click', function () {
+                sortFilesByDate("desc");
+            });
+
+            // Event: sort oldest first
+            document.getElementById('sort-oldest').addEventListener('click', function () {
+                sortFilesByDate("asc");
+            });
+
+            // Fetch JSON list of files from server
+            // - Expects a 200 OK response with JSON body.
+            // - Each item should include at least { name: string, modified: string }.
+            // - If "modified" is missing, we inject a current timestamp as a fallback to avoid NaN dates.
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                    return response.json();
+                })
+                .then(files => {
+                    // Normalize: ensure every file has a 'modified' property in ISO-8601 format
+                    allFiles = files.map(file => ({
+                        ...file,
+                        modified: file.modified || new Date().toISOString()
+                    }));
+                    // Default sort: newest first for a better user experience
+                    sortFilesByDate("desc");
+                })
+                .catch(error => {
+                    // Error handling: display a single-row error message in the table body.
+                    console.error("Error loading files:", error);
+                    const tableBody = document.getElementById('layers-table-body');
+                    tableBody.innerHTML = `<tr><td colspan='3'>Error loading files: ${error.message}</td></tr>`;
+                });
+        });
+    </script>
+</body>
+</html>
+
